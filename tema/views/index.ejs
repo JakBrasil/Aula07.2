@@ -1,11 +1,102 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title><%= title %></title>
-    <link rel='stylesheet' href='/stylesheets/style.css' />
-  </head>
-  <body>
-    <h1><%= title %></h1>
-    <p>Welcome to <%= title %></p>
-  </body>
-</html>
+	<html>
+	    <head></head>
+	    <body>
+	        <div id="game"></div>
+	        <script src="//cdn.jsdelivr.net/npm/socket.io-client@2/dist/socket.io.js"></script>
+	        <script src="//cdn.jsdelivr.net/npm/phaser@3.24.1/dist/phaser.min.js"></script>
+	        <script>
+
+            const phaserConfig = {
+                type: Phaser.AUTO,
+                parent: "game",
+                width: 1280,
+                height: 720,
+                backgroundColor: "#E7F6EF",
+                physics: {
+                    default: "arcade",
+                    arcade: {
+                        gravity: { y: 200 }
+                    }
+                },
+                dom: {
+                    createContainer: true
+                },
+                scene: {
+                    init: initScene,
+                    preload: preloadScene,
+                    create: createScene
+                }
+            };
+
+            const game = new Phaser.Game(phaserConfig);
+
+            function initScene() {
+	    this.socket = io("http://localhost:3000", { autoConnect: false });
+	    this.chatMessages = [];
+	}
+    function preloadScene() {
+	    this.load.html("form", "form.html");
+	    this.load.image("leaf", "leaf.png");
+	}
+    function createScene() {
+	
+	    this.leafGroup = this.physics.add.group({
+	        defaultKey: "leaf",
+	        maxSize: 15
+	    });
+	
+	    for(let i = 0; i < 15; i++) {
+	        let randomX = Math.floor(Math.random() * 1000);
+	        let randomY = Math.floor(Math.random() * 600);
+	        let randomVelocityX = Math.floor(Math.random() * 2);
+	        this.leafGroup.get(randomX, randomY)
+	            .setScale(0.2)
+	            .setVelocity([-100, 100][randomVelocityX], 200)
+	            .setBounce(1, 1)
+	            .setCollideWorldBounds(true)
+	    }
+	
+	    this.textInput = this.add.dom(1135, 690).createFromCache("form").setOrigin(0.5);
+	    this.chat = this.add.text(1000, 10, "", { lineSpacing: 15, backgroundColor: "#21313CDD", color: "#26924F", padding: 10, fontStyle: "bold" });
+	    this.chat.setFixedSize(270, 645);
+	
+	    this.enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+	
+	    this.enterKey.on("down", event => {
+	        let chatbox = this.textInput.getChildByName("chat");
+	        if (chatbox.value != "") {
+	            this.socket.emit("message", chatbox.value);
+	            chatbox.value = "";
+	        }
+	    })
+	
+	    this.socket.connect();
+	
+	    this.socket.on("connect", async () => {
+	        this.socket.emit("join", "mongodb");
+	    });
+	
+	    this.socket.on("joined", async (gameId) => {
+	        let result = await fetch("http://localhost:3000/chats?room=" + gameId).then(response => response.json());
+	        this.chatMessages = result.messages;
+	        this.chatMessages.push("Welcome to " + gameId);
+	        if (this.chatMessages.length > 20) {
+	            this.chatMessages.shift();
+	        }
+	        this.chat.setText(this.chatMessages);
+	    });
+	
+	    this.socket.on("message", (message) => {
+	        this.chatMessages.push(message);
+	        if(this.chatMessages.length > 20) {
+	            this.chatMessages.shift();
+	        }
+	        this.chat.setText(this.chatMessages);
+	    });
+	
+	}
+
+        </script>
+	    </body>
+	</html>
